@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Gators">
+      <UniqueIdentifier>{b57b5edc-3317-4413-8156-508d8af1b9ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Gators\Cpu">
+      <UniqueIdentifier>{47ea8cb2-323c-4e09-bf6b-fe236e6fa945}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CpuGator.h" />
+    <ClInclude Include="GatorUtils.h">
+      <Filter>Gators</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CpuGator.cpp" />
+    <ClCompile Include="GatorUtils.cpp" />
+  </ItemGroup>
+</Project>

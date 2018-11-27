@@ -33,6 +33,9 @@ public:
 	void FFT1rows();
 	void FFT1cols();
 	void IFFT2();
+	void IFFT1rows();
+	void IFFT1cols();
+
 	void FFTShift();
 	inline void FFTShifted() {
 		FFTShift();
@@ -45,10 +48,19 @@ public:
 		FFTShift();
 	}
 	
+	void CplxToExp();
+	void ExpToCplx();
+
+	void IntNormExp();
+	void IntNormCplx();
+	void PhaseBinExp();
+	void PhaseBinCplx();
+
 	//void Resize(int rows, int cols);
 	void MulTransferFunction(float distance);
 	void MulLens(float focalX, float focalY);
 	void Propagate(float distance);
+	void Propagate1D(float distance, char axis);
 	void Show(FieldType fieldType = FieldType::Intensity);
 
 public:

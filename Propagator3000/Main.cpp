@@ -6,45 +6,44 @@ int main()
 
 	cv::Mat image = cv::imread("C:\\CGH\\input_wframe.BMP", cv::IMREAD_GRAYSCALE);
 	image.convertTo(image, CV_32FC1, 1.0 / 255);
+	
 
 	CpuGator holo(image);
-	std::cout << holo.PitchX << ", " << holo.PitchY << ", " << holo.Wavelength;
 
-	holo.Propagate(420e-3);
-	holo.Show(CpuGator::Re);
+	holo.PitchX = 10e-6;
+	holo.PitchY = 10e-6;
 
-	holo.FFTShift();
-	holo.Show(CpuGator::Re);
-	holo.Show(CpuGator::Im);
-
-	holo.FFT2();
-	holo.Show(CpuGator::Re);
-	holo.Show(CpuGator::Im);
-	holo.Show(CpuGator::LogIntensity);
-
-	holo.FFTShift();
+	/*
+	#########################################################
+	#####			Calculation of Hologram				#####
+	#########################################################
+	*/
+	
+	
+	//backward propagation
+	holo.Propagate1D(-10e-3,'x');
 	holo.Show(CpuGator::Re);
 	holo.Show(CpuGator::Im);
 
-	holo.MulTransferFunction(1e-3);
+	holo.IntNormCplx();
+	//holo.Show(CpuGator::Re);
+	//holo.Show(CpuGator::Im);
+	//holo.Show(CpuGator::Phase);
+	holo.PhaseBinCplx();
+	//holo.Show(CpuGator::Re);
+	//holo.Show(CpuGator::Im);
+	//holo.Show(CpuGator::Phase);
+
+
+	/*
+	#########################################################
+	#####			Reconstruction of Hologram			#####
+	#########################################################
+	*/
+	holo.Propagate(10e-3);
 	holo.Show(CpuGator::Re);
 	holo.Show(CpuGator::Im);
-	holo.Show(CpuGator::LogIntensity);
-
-	holo.FFTShift();
-	holo.Show(CpuGator::Re);
-	holo.Show(CpuGator::Im);
-
-	holo.IFFT2();
-	holo.Show(CpuGator::Re);
-	holo.Show(CpuGator::Im);
-	holo.Show(CpuGator::LogIntensity);
-
-	holo.FFTShift();
-	holo.Show(CpuGator::Re);
-	holo.Show(CpuGator::Im);
-
-
-
+	holo.Show(CpuGator::Phase);
+	std::cout << holo.PitchX << "reverse propagated form propagate method" << std::endl;
 
 }

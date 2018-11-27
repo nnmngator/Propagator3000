@@ -14,6 +14,7 @@ holo.Show(Re);
 class CpuGator
 {
 public:
+	
 	enum FieldType {
 		Re,
 		Im,
@@ -29,36 +30,26 @@ public:
 
 	void SetImage(const cv::Mat& image, FieldType fieldType = FieldType::Re);
 
-	void FFT2();
-	void FFT1rows();
-	void FFT1cols();
-	void IFFT2();
-	void IFFT1rows();
-	void IFFT1cols();
+	void FFT();
+	void FFT(char axis);
+	void IFFT();
+	void IFFT(char axis);
 
 	void FFTShift();
-	inline void FFTShifted() {
-		FFTShift();
-		FFT2();
-		FFTShift();
-	}
-	inline void IFFTShifted() {
-		FFTShift();
-		IFFT2();
-		FFTShift();
-	}
+	inline void FFTShifted();
+	inline void IFFTShifted();
 	
 	void CplxToExp();
 	void ExpToCplx();
 
 	void IntNormExp();
 	void IntNormCplx();
-	void PhaseBinExp();
-	void PhaseBinCplx();
+	void PhaseBinExp(float threshold = 0);
+	void PhaseBinCplx(float threshold = 0);
 
 	//void Resize(int rows, int cols);
 	void MulTransferFunction(float distance);
-	void MulLens(float focalX, float focalY);
+	void MulLens(float focal); //todo - focalX, focalY
 	void Propagate(float distance);
 	void Propagate1D(float distance, char axis);
 	void Show(FieldType fieldType = FieldType::Intensity);

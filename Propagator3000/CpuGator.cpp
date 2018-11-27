@@ -2,10 +2,12 @@
 #include "GatorUtils.h"
 #include <mutex>
 
+using namespace math;
+using namespace optics;
+
 CpuGator::CpuGator(int rows, int cols) :
-	PitchX(10e-6), PitchY(10e-6), Wavelength(632.8e-9), m_data(rows, cols, CV_32FC2,cv::Scalar(1))
-{
-}
+	PitchX(10e-6), PitchY(10e-6), Wavelength(632.8e-9), m_data(rows, cols, CV_32FC2, cv::Scalar(1))
+{}
 
 CpuGator::CpuGator(const cv::Mat & image, FieldType fieldType) :
 	PitchX(10e-6), PitchY(10e-6), Wavelength(632.8e-9)
@@ -20,7 +22,7 @@ void CpuGator::SetImage(const cv::Mat & image, FieldType fieldType)
 	m_data = cv::Scalar(1, 1);
 	m_data.forEach<cv::Vec2f>([&](cv::Vec2f& pix, const int *pos)-> void {
 		int row = pos[0], col = pos[1];
-		switch (fieldType)
+		switch(fieldType)
 		{
 		case CpuGator::Re:
 			pix[0] = image.at<float>(row, col);
@@ -47,38 +49,42 @@ void CpuGator::SetImage(const cv::Mat & image, FieldType fieldType)
 
 }
 
-void CpuGator::FFT2()
+void CpuGator::FFT()
 {
 	cv::dft(m_data, m_data, cv::DFT_SCALE);
 }
 
-void CpuGator::FFT1rows()
+void CpuGator::FFT(char axis)
 {
-	cv::dft(m_data, m_data, cv::DFT_ROWS);
+	if(axis == 'x')
+	{
+		cv::dft(m_data, m_data, cv::DFT_ROWS);
+	}
+	else if(axis == 'y')
+	{
+		cv::rotate(m_data, m_data, cv::ROTATE_90_CLOCKWISE);
+		cv::dft(m_data, m_data, cv::DFT_ROWS);
+		cv::rotate(m_data, m_data, cv::ROTATE_90_COUNTERCLOCKWISE);
+	}
 }
 
-void CpuGator::FFT1cols()
-{
-	cv::rotate(m_data, m_data, cv::ROTATE_90_CLOCKWISE);
-	FFT1rows();
-	cv::rotate(m_data, m_data, cv::ROTATE_90_COUNTERCLOCKWISE);
-}
-
-void CpuGator::IFFT2()
+void CpuGator::IFFT()
 {
 	cv::dft(m_data, m_data, cv::DFT_INVERSE);
 }
 
-void CpuGator::IFFT1rows()
+void CpuGator::IFFT(char axis)
 {
-	cv::dft(m_data, m_data, cv::DFT_ROWS|cv::DFT_INVERSE);
-}
-
-void CpuGator::IFFT1cols()
-{
-	cv::rotate(m_data, m_data, cv::ROTATE_90_CLOCKWISE);
-	IFFT1rows();
-	cv::rotate(m_data, m_data, cv::ROTATE_90_COUNTERCLOCKWISE);
+	if(axis == 'x')
+	{
+		cv::dft(m_data, m_data, cv::DFT_ROWS | cv::DFT_INVERSE);
+	}
+	else if(axis == 'y')
+	{
+		cv::rotate(m_data, m_data, cv::ROTATE_90_CLOCKWISE);
+		cv::dft(m_data, m_data, cv::DFT_ROWS | cv::DFT_INVERSE);
+		cv::rotate(m_data, m_data, cv::ROTATE_90_COUNTERCLOCKWISE);
+	}
 }
 
 void CpuGator::FFTShift()
@@ -86,25 +92,41 @@ void CpuGator::FFTShift()
 	m_data.forEach<cv::Vec2f>([&](auto &pix, const int *pos)->void {
 		int row = pos[0], col = pos[1];
 
-		if (row >= m_data.rows / 2) return;
+		if(row >= m_data.rows / 2) return;
 
 		// 2nd (top left) quarter
-		if (col < m_data.cols / 2) {
+		if(col < m_data.cols / 2)
+		{
 			auto& other_pix = m_data.at<cv::Vec2f>(row + m_data.rows / 2, col + m_data.cols / 2);
 			std::swap(other_pix, pix);
 		}
 		// 1st quareter (top right)
-		else {
+		else
+		{
 			auto& other_pix = m_data.at<cv::Vec2f>(row + m_data.rows / 2, col - m_data.cols / 2);
 			std::swap(other_pix, pix);
 		}
 	});
 }
 
+inline void CpuGator::FFTShifted()
+{
+	FFTShift();
+	FFT();
+	FFTShift();
+}
+
+inline void CpuGator::IFFTShifted()
+{
+	FFTShift();
+	IFFT();
+	FFTShift();
+}
+
 void CpuGator::CplxToExp()
 {
 	m_data.forEach<cv::Vec2f>([&](cv::Vec2f &pix, const int *pos)->void {
-		float A = pix[0] * pix[0] + pix[1] * pix[1];
+		float A = std::sqrtf(pix[0] * pix[0] + pix[1] * pix[1]);
 		float Fi = atan2f(pix[1], pix[0]);
 		pix = cv::Vec2f(A, Fi);
 	});
@@ -134,15 +156,15 @@ void CpuGator::IntNormExp()
 	cv::merge(chs, m_data);
 }
 
-void CpuGator::PhaseBinExp()
+void CpuGator::PhaseBinExp(float threshold)
 {
 	std::vector<cv::Mat> chs(2);
 	cv::split(m_data, chs);
-	cv::threshold(chs[1], chs[1], 0, 2 * CV_PI, 0);
+	cv::threshold(chs[1], chs[1], threshold, 2 * CV_PI, cv::THRESH_BINARY);
 	cv::merge(chs, m_data);
 }
 
-void CpuGator::PhaseBinCplx()
+void CpuGator::PhaseBinCplx(float threshold )
 {
 	CplxToExp();
 	PhaseBinExp();
@@ -157,52 +179,31 @@ void CpuGator::MulTransferFunction(float distance)
 	});
 }
 
+void CpuGator::MulLens(float focal)
+{
+	m_data.forEach<cv::Vec2f>([&](cv::Vec2f &pix, const int *pos)->void {
+		auto lens = Lens(focal, Wavelength, PitchX, PitchY, pos[0], pos[1], m_data.rows, m_data.cols);
+		pix = Mul(lens, pix);
+	});
+}
+
 void CpuGator::Propagate(float distance)
 {
-	FFTShift();
-	cv::dft(m_data, m_data);
-	FFTShift();
-	m_data.forEach<cv::Vec2f>([&](cv::Vec2f& imgPix, const int * pos) -> void {
-		int row = pos[0], col = pos[1];
-		auto tfPix = TransferFunction(distance, Wavelength, PitchX, PitchY, row, col, m_data.rows, m_data.cols);
-		imgPix = Mul(imgPix, tfPix);
-	});
-	FFTShift();
-	cv::dft(m_data, m_data, cv::DFT_INVERSE);
-	FFTShift();
+	FFTShifted();
+	MulTransferFunction(distance);
+	IFFTShifted();
 }
 
 void CpuGator::Propagate1D(float distance, char axis)
 {
-	switch (axis)
-	{
-	case 'x':
-			FFTShift();
-			FFT1rows();
-			FFTShift();
-
-			MulTransferFunction(distance);
-			
-			FFTShift();
-			IFFT1rows();
-			FFTShift();
-
-			break;
-	case 'y':
-			FFTShift();
-			FFT1cols(); 
-			FFTShift();
-
-			MulTransferFunction(distance);
-
-			FFTShift();
-			IFFT1cols();
-			FFTShift();
-
-			break;
-	}
+	FFTShift();
+	FFT(axis);
+	FFTShift();
+	MulTransferFunction(distance);
+	FFTShift();
+	IFFT(axis);
+	FFTShift();
 }
-
 
 void CpuGator::Show(FieldType fieldType)
 {
@@ -210,7 +211,7 @@ void CpuGator::Show(FieldType fieldType)
 	m_data.forEach<cv::Vec2f>([&](auto &pix, const int *pos)->void {
 		int row = pos[0], col = pos[1];
 		auto &pix2 = result.at<float>(row, col);
-		switch (fieldType)
+		switch(fieldType)
 		{
 		case CpuGator::Re:
 			pix2 = pix[0];
@@ -225,7 +226,7 @@ void CpuGator::Show(FieldType fieldType)
 			pix2 = std::sqrtf(pix[1] * pix[1] + pix[0] * pix[0]);
 			break;
 		case CpuGator::Intensity:
-			//todo xD
+			pix2 = pix[1] * pix[1] + pix[0] * pix[0];
 			break;
 		case CpuGator::LogIntensity:
 			pix2 = std::logf(1.0f + pix[1] * pix[1] + pix[0] * pix[0]);

@@ -44,8 +44,11 @@ public:
 
 	void IntNormExp();
 	void IntNormCplx();
-	void PhaseBinExp(float threshold = 0);
-	void PhaseBinCplx(float threshold = 0);
+	void PhaseBinExp();
+	void PhaseBinCplx();
+
+
+	void Sobel(char axis, int kernelSize=5);
 
 	//void Resize(int rows, int cols);
 	void MulTransferFunction(float distance);
@@ -53,6 +56,11 @@ public:
 	void Propagate(float distance);
 	void Propagate1D(float distance, char axis);
 	void Show(FieldType fieldType = FieldType::Intensity);
+
+	void Save(const std::string & filename, FieldType fieldType);
+	void ShowSave(const std::string & filename, FieldType fieldType);
+	void ShowSaveAll(const std::string & filePrefix);
+
 
 public:
 	cv::Mat m_data;

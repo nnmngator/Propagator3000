@@ -31,16 +31,16 @@ void CpuGator::SetImage(const cv::Mat & image, FieldType fieldType)
 			pix[1] = image.at<float>(row, col);
 			break;
 		case CpuGator::Phase:
-			//todo xD
+			//todo 
 			break;
 		case CpuGator::Amplitude:
-			//todo xD
+			//todo 
 			break;
 		case CpuGator::Intensity:
-			//todo xD
+			//todo 
 			break;
 		case CpuGator::LogIntensity:
-			//todo xD
+			//todo 
 			break;
 		default:
 			break;
@@ -156,19 +156,30 @@ void CpuGator::IntNormExp()
 	cv::merge(chs, m_data);
 }
 
-void CpuGator::PhaseBinExp(float threshold)
+void CpuGator::PhaseBinExp()
 {
 	std::vector<cv::Mat> chs(2);
+	double minVal, maxVal;
 	cv::split(m_data, chs);
-	cv::threshold(chs[1], chs[1], threshold, 2 * CV_PI, cv::THRESH_BINARY);
+	cv::minMaxLoc(chs[1], &minVal, &maxVal);
+	std::cout << minVal << ',' << maxVal << std::endl;
+	cv::threshold(chs[1], chs[1], (maxVal+minVal)/2,maxVal, cv::THRESH_BINARY);
 	cv::merge(chs, m_data);
 }
 
-void CpuGator::PhaseBinCplx(float threshold )
+void CpuGator::PhaseBinCplx()
 {
 	CplxToExp();
 	PhaseBinExp();
 	ExpToCplx();
+}
+
+
+void CpuGator::Sobel(char axis, int kernelSize)
+{
+	bool x = axis == 'x' ? 1 : 0;
+	bool y = axis == 'y' ? 1 : 0;
+	cv::Sobel(m_data, m_data, CV_32F, x, y, kernelSize);
 }
 
 void CpuGator::MulTransferFunction(float distance)
@@ -241,5 +252,60 @@ void CpuGator::Show(FieldType fieldType)
 	cv::imshow("a", result);
 	cv::waitKey();
 	cv::destroyAllWindows();
+}
+
+void CpuGator::Save(const std::string & filename, FieldType fieldType)
+{
+	cv::Mat result(m_data.rows, m_data.cols, CV_32FC1);
+	m_data.forEach<cv::Vec2f>([&](auto &pix, const int *pos)->void {
+		int row = pos[0], col = pos[1];
+		auto &pix2 = result.at<float>(row, col);
+		switch (fieldType)
+		{
+		case CpuGator::Re:
+			pix2 = pix[0];
+			break;
+		case CpuGator::Im:
+			pix2 = pix[1];
+			break;
+		case CpuGator::Phase:
+			pix2 = std::atan2f(pix[1], pix[0]);
+			break;
+		case CpuGator::Amplitude:
+			pix2 = std::sqrtf(pix[1] * pix[1] + pix[0] * pix[0]);
+			break;
+		case CpuGator::Intensity:
+			pix2 = pix[1] * pix[1] + pix[0] * pix[0];
+			break;
+		case CpuGator::LogIntensity:
+			pix2 = std::logf(1.0f + pix[1] * pix[1] + pix[0] * pix[0]);
+			break;
+		default:
+			break;
+		}
+	});
+	cv::normalize(result, result, 0, 1, cv::NORM_MINMAX);
+	result.convertTo(result, CV_16UC1, 65535);
+	cv::imwrite(filename+".bmp", result);
+}
+
+void CpuGator::ShowSave(const std::string & filename, FieldType fieldType)
+{
+	Show(fieldType);
+	Save(filename+".bmp", fieldType);
+}
+
+void CpuGator::ShowSaveAll(const std::string & filePrefix)
+{
+	Show(CpuGator::Re);
+	Save(filePrefix+"Re.bmp", CpuGator::Re);
+	Show(CpuGator::Im);
+	Save(filePrefix + "Im.bmp", CpuGator::Im);
+	Show(CpuGator::Phase);
+	Save(filePrefix + "Phase.bmp", CpuGator::Phase);
+	Show(CpuGator::Intensity);
+	Save(filePrefix + "Intensity.bmp", CpuGator::Intensity);
+	Show(CpuGator::LogIntensity);
+	Save(filePrefix + "LogIntensity.bmp", CpuGator::LogIntensity);
 }
 

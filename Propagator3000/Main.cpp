@@ -4,60 +4,23 @@
 int main() 
 {
 
-	cv::Mat image = cv::imread("C:\\CGH\\input_wframe.BMP", cv::IMREAD_GRAYSCALE);
+	cv::Mat image = cv::imread("input.BMP", cv::IMREAD_GRAYSCALE);
 	image.convertTo(image, CV_32FC1, 1.0 / 255);
+
+	CpuGator holo1(image), holo2(image), holo3(768, 768);
+	float distance = 10e-3; //mm
+
+	holo3.MulTransferFunction(distance);
+	holo3.ShowAll();
 	
-	/*
-	#########################################################
-	#####			Calculation of Hologram				#####
-	#########################################################
-	*/
-	CpuGator holo(image);
-	holo.ShowSaveAll("C:/Export/1input");
-	holo.Sobel('x');
-	holo.ShowSaveAll("C:/Export/2sobel");
+	std::cout << "Dx propagation\n";
+	holo1.Sobel('x');
+	holo1.Propagate1D(distance, 'x');
+	holo1.ShowAll();
 
-/*
-	for(float z = 0; z < 1000e-3; z += 10e-3)
-	{
-		holo.Propagate(10e-3);
-		holo.Show(CpuGator::Intensity);
-	}
-
-	*/
-	//backward propagation
-	holo.Propagate1D(-10e-3,'x');
-	holo.ShowSaveAll("C:/Export/3BackProp");
-	//holo.Show(CpuGator::Re);
-	//holo.Show(CpuGator::Im);
-	//holo.Show(CpuGator::Phase);
-	//holo.Show(CpuGator::Intensity);
-
-	//holo.IntNormCplx();
-	//holo.ShowSaveAll("C:/Export/4IntNorm");
-	//holo.Show(CpuGator::Re);
-	//holo.Show(CpuGator::Im);
-	//holo.Show(CpuGator::Phase);
-	//holo.Show(CpuGator::Intensity);
-
-	//holo.PhaseBinCplx();
-	//holo.ShowSaveAll("C:/Export/5PhaseBin");
-	//holo.Show(CpuGator::Re);
-	//holo.Show(CpuGator::Im);
-	//holo.Show(CpuGator::Phase);
-	//holo.Show(CpuGator::Intensity);
-
-	/*
-	#########################################################
-	#####			Reconstruction of Hologram			#####
-	#########################################################
-	*/
-	holo.Propagate(10e-3);
-	holo.ShowSaveAll("C:/Export/6ForwardProp");
-	//holo.Show(CpuGator::Re);
-	//holo.Show(CpuGator::Im);
-	//holo.Show(CpuGator::Phase);
-	//holo.Show(CpuGator::Intensity);
-	//std::cout << holo.PitchX << "reverse propagated form propagate method" << std::endl;
+	std::cout << "Dy propagation\n";
+	holo2.Sobel('y');
+	holo2.Propagate1D(distance, 'y');
+	holo2.ShowAll();
 
 }

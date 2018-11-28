@@ -9,6 +9,7 @@ int main()
 	
 
 	CpuGator holo(image);
+	holo.Show(CpuGator::Re);
 
 	holo.PitchX = 10e-6;
 	holo.PitchY = 10e-6;
@@ -25,11 +26,11 @@ int main()
 	holo.Show(CpuGator::Re);
 	holo.Show(CpuGator::Im);
 
-	holo.IntNormCplx();
+	//holo.IntNormCplx();
 	//holo.Show(CpuGator::Re);
 	//holo.Show(CpuGator::Im);
 	//holo.Show(CpuGator::Phase);
-	holo.PhaseBinCplx();
+	//holo.PhaseBinCplx();
 	//holo.Show(CpuGator::Re);
 	//holo.Show(CpuGator::Im);
 	//holo.Show(CpuGator::Phase);

@@ -3,7 +3,7 @@
 #include <mutex>
 
 CpuGator::CpuGator(int rows, int cols) :
-	PitchX(10e-6), PitchY(10e-6), Wavelength(632.8e-9), m_data(rows, cols, CV_32FC2,cv::Scalar(1))
+	PitchX(10e-6), PitchY(10e-6), Wavelength(632.8e-9), m_data(rows, cols, CV_32FC2, cv::Scalar(1))
 {
 }
 
@@ -71,7 +71,7 @@ void CpuGator::IFFT2()
 
 void CpuGator::IFFT1rows()
 {
-	cv::dft(m_data, m_data, cv::DFT_ROWS|cv::DFT_INVERSE);
+	cv::dft(m_data, m_data, cv::DFT_ROWS | cv::DFT_INVERSE);
 }
 
 void CpuGator::IFFT1cols()
@@ -138,7 +138,7 @@ void CpuGator::PhaseBinExp()
 {
 	std::vector<cv::Mat> chs(2);
 	cv::split(m_data, chs);
-	cv::threshold(chs[1], chs[1], 0, 2 * CV_PI, 0);
+	cv::threshold(chs[1], chs[1], 0, 2 * CV_PI, cv::THRESH_BINARY);
 	cv::merge(chs, m_data);
 }
 
@@ -177,29 +177,29 @@ void CpuGator::Propagate1D(float distance, char axis)
 	switch (axis)
 	{
 	case 'x':
-			FFTShift();
-			FFT1rows();
-			FFTShift();
+		FFTShift();
+		FFT1rows();
+		FFTShift();
 
-			MulTransferFunction(distance);
-			
-			FFTShift();
-			IFFT1rows();
-			FFTShift();
+		MulTransferFunction(distance);
 
-			break;
+		FFTShift();
+		IFFT1rows();
+		FFTShift();
+
+		break;
 	case 'y':
-			FFTShift();
-			FFT1cols(); 
-			FFTShift();
+		FFTShift();
+		FFT1cols();
+		FFTShift();
 
-			MulTransferFunction(distance);
+		MulTransferFunction(distance);
 
-			FFTShift();
-			IFFT1cols();
-			FFTShift();
+		FFTShift();
+		IFFT1cols();
+		FFTShift();
 
-			break;
+		break;
 	}
 }
 

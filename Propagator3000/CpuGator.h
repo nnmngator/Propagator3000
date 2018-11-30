@@ -13,18 +13,15 @@ holo.Show(Re);
 
 class CpuGator
 {
-	typedef uchar field_type;
-
 public:
-
-	enum FieldType : field_type
-	{
-		Re = 0x01,
-		Im = 0x02,
-		Phase = 0x04,
-		Amplitude = 0x08,
-		Intensity = 0x10,
-		LogIntensity = 0x20
+	
+	enum FieldType {
+		Re,
+		Im,
+		Phase,
+		Amplitude,
+		Intensity,
+		LogIntensity
 	};
 
 	CpuGator(int rows, int cols);
@@ -39,26 +36,27 @@ public:
 	void IFFT(char axis);
 
 	void FFTShift();
-	void FFTShifted();
-	void FFTShifted(char axis);
-	void IFFTShifted();
-	void IFFTShifted(char axis);
+	inline void FFTShifted();
+	inline void IFFTShifted();
+	
 	void CplxToExp();
 	void ExpToCplx();
 
-	void IntensityNorm();
-	void PhaseBinarization(float threshold);
+	void IntNormExp();
+	void IntNormCplx();
+	void PhaseBinExp();
+	void PhaseBinCplx();
 
-	void Sobel(char axis, int kernelSize = 5);
+
+	void Sobel(char axis, int kernelSize=5);
 
 	//void Resize(int rows, int cols);
 	void MulTransferFunction(float distance);
 	void MulLens(float focal); //todo - focalX, focalY
 	void Propagate(float distance);
 	void Propagate1D(float distance, char axis);
-	
 	void Show(FieldType fieldType = FieldType::Intensity);
-	void ShowAll();
+
 	void Save(const std::string & filename, FieldType fieldType);
 	void ShowSave(const std::string & filename, FieldType fieldType);
 	void ShowSaveAll(const std::string & filePrefix);
@@ -67,21 +65,5 @@ public:
 public:
 	cv::Mat m_data;
 	float PitchX, PitchY, Wavelength;
-
-private:
-
-	enum InternalFieldType : field_type
-	{
-		ReIm = Re | Im, 
-		AmpPhase = Amplitude | Phase | Intensity | LogIntensity
-	};
-	// Holds info whether currently m_data is in [Re, Im] or [Amp, Phase] form
-	InternalFieldType m_fieldType;
-
-	void SetPixelValue(cv::Vec2f& pix, float value, FieldType fieldType);
-	float GetPixelValue(const cv::Vec2f& pix, FieldType fieldType);
-	
-	void ToggleFieldType();
-	void ToggleFieldType(field_type desiredFieldType);
 };
 

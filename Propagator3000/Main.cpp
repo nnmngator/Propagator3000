@@ -3,61 +3,23 @@
 
 int main() 
 {
-
-	cv::Mat image = cv::imread("C:\\CGH\\input_wframe.BMP", cv::IMREAD_GRAYSCALE);
+	cv::Mat image = cv::imread("Images/lena.BMP", cv::IMREAD_GRAYSCALE);
+	
 	image.convertTo(image, CV_32FC1, 1.0 / 255);
 	
-	/*
-	#########################################################
-	#####			Calculation of Hologram				#####
-	#########################################################
-	*/
-	CpuGator holo(image);
-	holo.ShowSaveAll("C:/Export/1input");
-	holo.Sobel('x');
-	holo.ShowSaveAll("C:/Export/2sobel");
+	CpuGator c1(image), c2(image), c3(image);
+	c1.Propagate(100e-3, Direction::X);
+	c1.Show(FieldType::Intensity);
 
-/*
-	for(float z = 0; z < 1000e-3; z += 10e-3)
-	{
-		holo.Propagate(10e-3);
-		holo.Show(CpuGator::Intensity);
-	}
+	c2.Propagate(100e-3, Direction::Y);
+	c2.Show(FieldType::Intensity);
 
-	*/
-	//backward propagation
-	holo.Propagate1D(-10e-3,'x');
-	holo.ShowSaveAll("C:/Export/3BackProp");
-	//holo.Show(CpuGator::Re);
-	//holo.Show(CpuGator::Im);
-	//holo.Show(CpuGator::Phase);
-	//holo.Show(CpuGator::Intensity);
+	c3.Propagate(100e-3);
+	c3.Show(FieldType::Intensity);
 
-	//holo.IntNormCplx();
-	//holo.ShowSaveAll("C:/Export/4IntNorm");
-	//holo.Show(CpuGator::Re);
-	//holo.Show(CpuGator::Im);
-	//holo.Show(CpuGator::Phase);
-	//holo.Show(CpuGator::Intensity);
+	auto c4 = c1 * c2;	 // lub c1 + c2
+	c4.Show(FieldType::Intensity);
 
-	//holo.PhaseBinCplx();
-	//holo.ShowSaveAll("C:/Export/5PhaseBin");
-	//holo.Show(CpuGator::Re);
-	//holo.Show(CpuGator::Im);
-	//holo.Show(CpuGator::Phase);
-	//holo.Show(CpuGator::Intensity);
-
-	/*
-	#########################################################
-	#####			Reconstruction of Hologram			#####
-	#########################################################
-	*/
-	holo.Propagate(10e-3);
-	holo.ShowSaveAll("C:/Export/6ForwardProp");
-	//holo.Show(CpuGator::Re);
-	//holo.Show(CpuGator::Im);
-	//holo.Show(CpuGator::Phase);
-	//holo.Show(CpuGator::Intensity);
-	//std::cout << holo.PitchX << "reverse propagated form propagate method" << std::endl;
-
+	system("pause");
+	return 0;
 }

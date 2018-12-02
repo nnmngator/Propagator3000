@@ -1,311 +1,466 @@
 #include "CpuGator.h"
-#include "GatorUtils.h"
-#include <mutex>
 
+// To use all complex math on Pix w/o namespace qualifier
 using namespace math;
-using namespace optics;
 
 CpuGator::CpuGator(int rows, int cols) :
-	PitchX(10e-6), PitchY(10e-6), Wavelength(632.8e-9), m_data(rows, cols, CV_32FC2, cv::Scalar(1))
+	PitchX(10e-6f), PitchY(10e-6f), Wavelength(632.8e-9f),
+	Data(rows, cols, CV_32FC2, cv::Scalar(1))
 {}
 
 CpuGator::CpuGator(const cv::Mat & image, FieldType fieldType) :
-	PitchX(10e-6), PitchY(10e-6), Wavelength(632.8e-9)
+	PitchX(10e-6f), PitchY(10e-6f), Wavelength(632.8e-9f)
 {
 	SetImage(image, fieldType);
 }
 
+CpuGator::CpuGator(const CpuGator & other) :
+	PitchX(other.PitchX), PitchY(other.PitchY), Wavelength(other.Wavelength),
+	// Data need to be cloned so that it is separate for each CpuGator instance
+	Data(other.Data.clone())
+{}
+
 void CpuGator::SetImage(const cv::Mat & image, FieldType fieldType)
 {
-	m_data.release();
-	m_data.create(image.rows, image.cols, CV_32FC2);
-	m_data = cv::Scalar(1, 1);
-	m_data.forEach<cv::Vec2f>([&](cv::Vec2f& pix, const int *pos)-> void {
-		int row = pos[0], col = pos[1];
-		switch(fieldType)
-		{
-		case CpuGator::Re:
-			pix[0] = image.at<float>(row, col);
-			break;
-		case CpuGator::Im:
-			pix[1] = image.at<float>(row, col);
-			break;
-		case CpuGator::Phase:
-			//todo 
-			break;
-		case CpuGator::Amplitude:
-			//todo 
-			break;
-		case CpuGator::Intensity:
-			//todo 
-			break;
-		case CpuGator::LogIntensity:
-			//todo 
-			break;
-		default:
-			break;
-		}
-	});
+	assert(image.type() == CV_32FC1 &&
+		   "[CpuGator::SetImage] One channel floaWting point images allowed only");
 
+	// Dispose old data
+	Data.release();
+	// Allocate memory for new data
+	Data.create(image.rows, image.cols, CV_32FC2);
+	// Set both Re and Im to 1 for all pixels
+	Data = cv::Scalar(1, 1);
+	// Assign given field value to each pixel
+	Data.forEach<Pix>([&](Pix& pix, const int *pos)-> void {
+		int row = pos[0], col = pos[1];
+		float value = image.at<float>(row, col);
+		SetPixelValue(pix, value, fieldType);
+	});
 }
 
 void CpuGator::FFT()
 {
-	cv::dft(m_data, m_data, cv::DFT_SCALE);
+	cv::dft(Data, Data, cv::DFT_COMPLEX_OUTPUT);
 }
 
-void CpuGator::FFT(char axis)
+void CpuGator::FFT(Direction direction)
 {
-	if(axis == 'x')
+	if(direction == Direction::Y)
 	{
-		cv::dft(m_data, m_data, cv::DFT_ROWS);
+		cv::dft(Data, Data, cv::DFT_ROWS | cv::DFT_COMPLEX_OUTPUT);
 	}
-	else if(axis == 'y')
+	else if(direction == Direction::X)
 	{
-		cv::rotate(m_data, m_data, cv::ROTATE_90_CLOCKWISE);
-		cv::dft(m_data, m_data, cv::DFT_ROWS);
-		cv::rotate(m_data, m_data, cv::ROTATE_90_COUNTERCLOCKWISE);
+		// [TESTED] It has to be conterclockwise FIRST
+		cv::rotate(Data, Data, cv::ROTATE_90_COUNTERCLOCKWISE);
+		cv::dft(Data, Data, cv::DFT_ROWS | cv::DFT_COMPLEX_OUTPUT);
+		cv::rotate(Data, Data, cv::ROTATE_90_CLOCKWISE);
 	}
 }
 
 void CpuGator::IFFT()
 {
-	cv::dft(m_data, m_data, cv::DFT_INVERSE);
+	cv::dft(Data, Data, cv::DFT_INVERSE | cv::DFT_SCALE);
 }
 
-void CpuGator::IFFT(char axis)
+void CpuGator::IFFT(Direction direction)
 {
-	if(axis == 'x')
+	if(direction == Direction::Y)
 	{
-		cv::dft(m_data, m_data, cv::DFT_ROWS | cv::DFT_INVERSE);
+		cv::dft(Data, Data, cv::DFT_ROWS | cv::DFT_INVERSE | cv::DFT_SCALE);
 	}
-	else if(axis == 'y')
+	else if(direction == Direction::X)
 	{
-		cv::rotate(m_data, m_data, cv::ROTATE_90_CLOCKWISE);
-		cv::dft(m_data, m_data, cv::DFT_ROWS | cv::DFT_INVERSE);
-		cv::rotate(m_data, m_data, cv::ROTATE_90_COUNTERCLOCKWISE);
+		// [TESTED] It has to be conterclockwise FIRST
+		cv::rotate(Data, Data, cv::ROTATE_90_COUNTERCLOCKWISE);
+		cv::dft(Data, Data, cv::DFT_ROWS | cv::DFT_INVERSE | cv::DFT_SCALE);
+		cv::rotate(Data, Data, cv::ROTATE_90_CLOCKWISE);
 	}
 }
 
 void CpuGator::FFTShift()
 {
-	m_data.forEach<cv::Vec2f>([&](auto &pix, const int *pos)->void {
+	Data.forEach<Pix>([&](auto &pix, const int *pos)->void {
 		int row = pos[0], col = pos[1];
 
-		if(row >= m_data.rows / 2) return;
+		if(row >= Data.rows / 2) return;
 
 		// 2nd (top left) quarter
-		if(col < m_data.cols / 2)
+		if(col < Data.cols / 2)
 		{
-			auto& other_pix = m_data.at<cv::Vec2f>(row + m_data.rows / 2, col + m_data.cols / 2);
+			auto& other_pix = Data.at<Pix>(row + Data.rows / 2, col + Data.cols / 2);
 			std::swap(other_pix, pix);
 		}
 		// 1st quareter (top right)
 		else
 		{
-			auto& other_pix = m_data.at<cv::Vec2f>(row + m_data.rows / 2, col - m_data.cols / 2);
+			auto& other_pix = Data.at<Pix>(row + Data.rows / 2, col - Data.cols / 2);
 			std::swap(other_pix, pix);
 		}
 	});
 }
 
-inline void CpuGator::FFTShifted()
+void CpuGator::NormalizeIntensity()
 {
-	FFTShift();
-	FFT();
-	FFTShift();
-}
-
-inline void CpuGator::IFFTShifted()
-{
-	FFTShift();
-	IFFT();
-	FFTShift();
-}
-
-void CpuGator::CplxToExp()
-{
-	m_data.forEach<cv::Vec2f>([&](cv::Vec2f &pix, const int *pos)->void {
-		float A = std::sqrtf(pix[0] * pix[0] + pix[1] * pix[1]);
-		float Fi = atan2f(pix[1], pix[0]);
-		pix = cv::Vec2f(A, Fi);
+	Data.forEach<Pix>([&](Pix &pix, const int *pos) -> void {
+		float intensity = GetPixelValue(pix, FieldType::Intensity);
+		pix /= intensity;
 	});
 }
 
-void CpuGator::ExpToCplx()
+void CpuGator::BinarizePhase()
 {
-	m_data.forEach<cv::Vec2f>([&](cv::Vec2f &pix, const int *pos)->void {
-		float A = pix[0] * cosf(pix[1]);
-		float B = pix[0] * sinf(pix[1]);
-		pix = cv::Vec2f(A, B);
+	Data.forEach<Pix>([&](Pix &pix, const int *pos) -> void {
+		float phase = GetPixelValue(pix, FieldType::Phase);
+		if(phase < 0)
+		{
+			pix[1] = 0;
+		}
+		else
+		{
+			pix[0] = 0;
+		}
 	});
-}
-
-void CpuGator::IntNormCplx()
-{
-	CplxToExp();
-	IntNormExp();
-	ExpToCplx();
-}
-
-void CpuGator::IntNormExp()
-{
-	std::vector<cv::Mat> chs(2);
-	cv::split(m_data, chs);
-	cv::normalize(chs[0], chs[0], 0, 1, cv::NORM_MINMAX);
-	cv::merge(chs, m_data);
-}
-
-void CpuGator::PhaseBinExp()
-{
-	std::vector<cv::Mat> chs(2);
-	double minVal, maxVal;
-	cv::split(m_data, chs);
-	cv::minMaxLoc(chs[1], &minVal, &maxVal);
-	std::cout << minVal << ',' << maxVal << std::endl;
-	cv::threshold(chs[1], chs[1], (maxVal+minVal)/2,maxVal, cv::THRESH_BINARY);
-	cv::merge(chs, m_data);
-}
-
-void CpuGator::PhaseBinCplx()
-{
-	CplxToExp();
-	PhaseBinExp();
-	ExpToCplx();
-}
-
-
-void CpuGator::Sobel(char axis, int kernelSize)
-{
-	bool x = axis == 'x' ? 1 : 0;
-	bool y = axis == 'y' ? 1 : 0;
-	cv::Sobel(m_data, m_data, CV_32F, x, y, kernelSize);
 }
 
 void CpuGator::MulTransferFunction(float distance)
 {
-	m_data.forEach<cv::Vec2f>([&](cv::Vec2f &pix, const int *pos)->void {
-		auto tf = TransferFunction(distance, Wavelength, PitchX, PitchY, pos[0], pos[1], m_data.rows, m_data.cols);
+	Data.forEach<Pix>([&](Pix &pix, const int *pos)->void {
+		// here explicit declaration to optics::TF need to be made
+		// since there's also a static method on class with the same name
+		auto tf = optics::TransferFunction(distance, Wavelength, PitchX, PitchY, pos[0], pos[1], Data.rows, Data.cols);
 		pix = Mul(tf, pix);
 	});
 }
 
 void CpuGator::MulLens(float focal)
 {
-	m_data.forEach<cv::Vec2f>([&](cv::Vec2f &pix, const int *pos)->void {
-		auto lens = Lens(focal, Wavelength, PitchX, PitchY, pos[0], pos[1], m_data.rows, m_data.cols);
+	Data.forEach<Pix>([&](Pix &pix, const int *pos)->void {
+		// here explicit declaration to optics::Lens need to be made
+		// since there's also a static method on class with the same name
+		auto lens = optics::Lens(focal, Wavelength, PitchX, PitchY, pos[0], pos[1], Data.rows, Data.cols);
 		pix = Mul(lens, pix);
 	});
 }
 
 void CpuGator::Propagate(float distance)
 {
-	FFTShifted();
-	MulTransferFunction(distance);
-	IFFTShifted();
-}
-
-void CpuGator::Propagate1D(float distance, char axis)
-{
 	FFTShift();
-	FFT(axis);
+	FFT();
 	FFTShift();
 	MulTransferFunction(distance);
 	FFTShift();
-	IFFT(axis);
+	IFFT();
 	FFTShift();
 }
 
-void CpuGator::Show(FieldType fieldType)
+void CpuGator::Propagate(float distance, Direction direction)
 {
-	cv::Mat result(m_data.rows, m_data.cols, CV_32FC1);
-	m_data.forEach<cv::Vec2f>([&](auto &pix, const int *pos)->void {
+	FFTShift();
+	FFT(direction);
+	FFTShift();
+	MulTransferFunction(distance);
+	FFTShift();
+	IFFT(direction);
+	FFTShift();
+}
+
+void CpuGator::Show(FieldType fieldType) const
+{
+	cv::Mat result(Data.rows, Data.cols, CV_32FC1);
+	Data.forEach<Pix>([&](auto &pix, const int *pos)->void {
 		int row = pos[0], col = pos[1];
-		auto &pix2 = result.at<float>(row, col);
-		switch(fieldType)
-		{
-		case CpuGator::Re:
-			pix2 = pix[0];
-			break;
-		case CpuGator::Im:
-			pix2 = pix[1];
-			break;
-		case CpuGator::Phase:
-			pix2 = std::atan2f(pix[1], pix[0]);
-			break;
-		case CpuGator::Amplitude:
-			pix2 = std::sqrtf(pix[1] * pix[1] + pix[0] * pix[0]);
-			break;
-		case CpuGator::Intensity:
-			pix2 = pix[1] * pix[1] + pix[0] * pix[0];
-			break;
-		case CpuGator::LogIntensity:
-			pix2 = std::logf(1.0f + pix[1] * pix[1] + pix[0] * pix[0]);
-			//todo xD
-			break;
-		default:
-			break;
-		}
+		result.at<float>(row, col) = GetPixelValue(pix, fieldType);
 	});
+	std::string winname = FieldTypeToString(fieldType);
 	cv::normalize(result, result, 0, 1, cv::NORM_MINMAX);
-	cv::namedWindow("a", cv::WINDOW_NORMAL);
-	cv::imshow("a", result);
+	cv::namedWindow(winname, cv::WINDOW_NORMAL);
+	cv::resizeWindow(winname, 768, 768);
+	cv::moveWindow(winname, 768, 0);
+
+	// ROI
+	int w = 512, h = 512;
+	int x = result.cols / 2 - w / 2;
+	int y = result.cols / 2 - h / 2;
+	cv::Rect r(x, y, w, h);
+	cv::imshow(winname, result(r));
 	cv::waitKey();
-	cv::destroyAllWindows();
+	cv::destroyWindow(winname);
 }
 
-void CpuGator::Save(const std::string & filename, FieldType fieldType)
+void CpuGator::ShowAll() const
 {
-	cv::Mat result(m_data.rows, m_data.cols, CV_32FC1);
-	m_data.forEach<cv::Vec2f>([&](auto &pix, const int *pos)->void {
+	for(int i = FieldType::Re; i != FieldType::LogIntensity + 1; i++)
+	{
+		auto fieldType = static_cast<FieldType>(i);
+		Show(fieldType);
+	}
+}
+
+void CpuGator::Save(const std::string & filename, FieldType fieldType) const
+{
+	cv::Mat result(Data.rows, Data.cols, CV_32FC1);
+	Data.forEach<Pix>([&](auto &pix, const int *pos)->void {
 		int row = pos[0], col = pos[1];
-		auto &pix2 = result.at<float>(row, col);
-		switch (fieldType)
-		{
-		case CpuGator::Re:
-			pix2 = pix[0];
-			break;
-		case CpuGator::Im:
-			pix2 = pix[1];
-			break;
-		case CpuGator::Phase:
-			pix2 = std::atan2f(pix[1], pix[0]);
-			break;
-		case CpuGator::Amplitude:
-			pix2 = std::sqrtf(pix[1] * pix[1] + pix[0] * pix[0]);
-			break;
-		case CpuGator::Intensity:
-			pix2 = pix[1] * pix[1] + pix[0] * pix[0];
-			break;
-		case CpuGator::LogIntensity:
-			pix2 = std::logf(1.0f + pix[1] * pix[1] + pix[0] * pix[0]);
-			break;
-		default:
-			break;
-		}
+		Data.forEach<Pix>([&](auto &pix, const int *pos)->void {
+			int row = pos[0], col = pos[1];
+			result.at<float>(row, col) = GetPixelValue(pix, fieldType);
+		});
 	});
 	cv::normalize(result, result, 0, 1, cv::NORM_MINMAX);
 	result.convertTo(result, CV_16UC1, 65535);
-	cv::imwrite(filename+".bmp", result);
+	cv::imwrite(filename + ".bmp", result);
 }
 
-void CpuGator::ShowSave(const std::string & filename, FieldType fieldType)
+void CpuGator::ShowSave(const std::string & filename, FieldType fieldType) const
 {
 	Show(fieldType);
-	Save(filename+".bmp", fieldType);
+	Save(filename + ".bmp", fieldType);
 }
 
-void CpuGator::ShowSaveAll(const std::string & filePrefix)
+void CpuGator::ShowSaveAll(const std::string & filePrefix) const
 {
-	Show(CpuGator::Re);
-	Save(filePrefix+"Re.bmp", CpuGator::Re);
-	Show(CpuGator::Im);
-	Save(filePrefix + "Im.bmp", CpuGator::Im);
-	Show(CpuGator::Phase);
-	Save(filePrefix + "Phase.bmp", CpuGator::Phase);
-	Show(CpuGator::Intensity);
-	Save(filePrefix + "Intensity.bmp", CpuGator::Intensity);
-	Show(CpuGator::LogIntensity);
-	Save(filePrefix + "LogIntensity.bmp", CpuGator::LogIntensity);
+	for(int i = FieldType::Re; i != FieldType::LogIntensity; i++)
+	{
+		auto fieldType = static_cast<FieldType>(i);
+		auto fieldTypeName = FieldTypeToString(fieldType);
+		Show(fieldType);
+		Save(filePrefix + fieldTypeName + ".bmp", fieldType);
+	}
+}
+
+cv::Vec2f CpuGator::Min() const
+{
+	std::vector<cv::Mat> chnls;
+	cv::split(Data, chnls);
+	double minRe, minIm;
+	cv::minMaxLoc(chnls[0], &minRe, nullptr);
+	cv::minMaxLoc(chnls[1], &minIm, nullptr);
+	Pix minVal{ static_cast<float>(minRe),static_cast<float>(minIm) };
+	return minVal;
+}
+
+cv::Vec2f CpuGator::Max() const
+{
+	std::vector<cv::Mat> chnls;
+	cv::split(Data, chnls);
+	double maxRe, maxIm;
+	cv::minMaxLoc(chnls[0], nullptr, &maxRe);
+	cv::minMaxLoc(chnls[1], nullptr, &maxIm);
+	Pix maxVal{ static_cast<float>(maxRe), static_cast<float>(maxIm) };
+	return maxVal;
+}
+
+CpuGator CpuGator::TransferFunction(int rows, int cols, float distance, float pitchX, float pitchY, float wavelength)
+{
+	CpuGator tf(rows, cols);
+	tf.PitchX = pitchX;
+	tf.PitchY = pitchY;
+	tf.Wavelength = wavelength;
+	tf.MulTransferFunction(distance);
+	return tf;
+}
+
+CpuGator CpuGator::Lens(int rows, int cols, float focal, float pitchX, float pitchY, float wavelength)
+{
+	CpuGator lens(rows, cols);
+	lens.PitchX = pitchX;
+	lens.PitchY = pitchY;
+	lens.Wavelength = wavelength;
+	lens.MulLens(focal);
+	return lens;
+}
+
+CpuGator & CpuGator::operator=(const CpuGator & other)
+{
+	Data.release();
+	Data = other.Data.clone();
+	PitchX = other.PitchX;
+	PitchY = other.PitchY;
+	Wavelength = other.Wavelength;
+	return *this;
+}
+
+CpuGator & CpuGator::operator=(const Pix & value)
+{
+	Data = value;
+	return *this;
+}
+
+void CpuGator::operator+=(const CpuGator & other)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Add(pix, other.Data.at<Pix>(pos[0], pos[1]));
+	});
+}
+
+void CpuGator::operator-=(const CpuGator & other)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Sub(pix, other.Data.at<Pix>(pos[0], pos[1]));
+	});
+}
+
+void CpuGator::operator*=(const CpuGator & other)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Mul(pix, other.Data.at<Pix>(pos[0], pos[1]));
+	});
+}
+
+void CpuGator::operator/=(const CpuGator & other)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Div(pix, other.Data.at<Pix>(pos[0], pos[1]));
+	});
+}
+
+void CpuGator::operator+=(const Pix & value)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Add(pix, value);
+	});
+}
+
+void CpuGator::operator-=(const Pix & value)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Sub(pix, value);
+	});
+}
+
+void CpuGator::operator*=(const Pix & value)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Mul(pix, value);
+	});
+}
+
+void CpuGator::operator/=(const Pix & value)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Div(pix, value);
+	});
+}
+
+CpuGator & CpuGator::operator+(const CpuGator & other)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Add(pix, other.Data.at<Pix>(pos[0], pos[1]));
+	});
+	return *this;
+}
+
+CpuGator & CpuGator::operator-(const CpuGator & other)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Sub(pix, other.Data.at<Pix>(pos[0], pos[1]));
+	});
+	return *this;
+}
+
+CpuGator & CpuGator::operator*(const CpuGator & other)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Mul(pix, other.Data.at<Pix>(pos[0], pos[1]));
+	});
+	return *this;
+}
+
+CpuGator & CpuGator::operator/(const CpuGator & other)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Div(pix, other.Data.at<Pix>(pos[0], pos[1]));
+	});
+	return *this;
+}
+
+CpuGator & CpuGator::operator+(const Pix & value)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Add(pix, value);
+	});
+	return *this;
+}
+
+CpuGator & CpuGator::operator-(const Pix & value)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Sub(pix, value);
+	});
+	return *this;
+}
+
+CpuGator & CpuGator::operator*(const Pix & value)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Mul(pix, value);
+	});
+	return *this;
+}
+
+CpuGator & CpuGator::operator/(const Pix & value)
+{
+	Data.forEach<Pix>([&](auto& pix, const int* pos) -> void {
+		pix = Div(pix, value);
+	});
+	return *this;
+}
+
+void CpuGator::SetPixelValue(Pix & pix, float value, FieldType fieldType)
+{
+	float currentAmp;
+
+	switch(fieldType)
+	{
+	case FieldType::Re:
+		pix[0] = value;
+		break;
+	case FieldType::Im:
+		pix[1] = value;
+		break;
+	case FieldType::Amplitude:
+		currentAmp = GetPixelValue(pix, FieldType::Amplitude);
+		pix *= value / currentAmp;
+	case FieldType::Phase:
+		pix[0] = std::cosf(value);
+		pix[1] = std::sinf(value);
+		break;
+	case FieldType::Intensity:
+		currentAmp = GetPixelValue(pix, FieldType::Amplitude);
+		pix *= std::sqrtf(value) / currentAmp;
+		break;
+	case FieldType::LogIntensity:
+		currentAmp = GetPixelValue(pix, FieldType::Amplitude);
+		pix *= std::sqrtf(std::expf(value)) / currentAmp;
+		break;
+	}
+}
+
+float CpuGator::GetPixelValue(const Pix & pix, FieldType fieldType) const
+{
+	switch(fieldType)
+	{
+	case FieldType::Re:
+		return pix[0];
+	case FieldType::Im:
+		return pix[1];
+	case FieldType::Amplitude:
+		return std::sqrtf(pix[0] * pix[0] + pix[1] * pix[1]);
+	case FieldType::Phase:
+		return std::atan2f(pix[1], pix[0]);
+	case FieldType::Intensity:
+		return pix[0] * pix[0] + pix[1] * pix[1];
+	case FieldType::LogIntensity:
+		// 1.0f + -> because log of 0 is -inf, to avoid this, also
+		// to always return positive values since log(x) = 0 for x = 1
+		return std::logf(1.0f + pix[0] * pix[0] + pix[1] * pix[1]);
+	default:
+		// This should not happen :) but just in case trigger error 
+		// so we can notice that
+		assert(false && "[CpuGator::GetPixelValue] Unsupported field type");
+		return 0;
+	}
 }
 

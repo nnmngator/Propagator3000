@@ -144,19 +144,28 @@ void CpuGator::MulLens(float focal)
 	});
 }
 
-void CpuGator::Propagate(float distance)
+void CpuGator::Propagate(float distance, PropagationMethod method)
 {
-	FFTShift();
-	FFT();
-	FFTShift();
-	MulTransferFunction(distance);
-	FFTShift();
-	IFFT();
-	FFTShift();
+	switch(method)
+	{
+	case PropagationMethod::ASD:
+		FFTShift();
+		FFT();
+		FFTShift();
+		MulTransferFunction(distance);
+		FFTShift();
+		IFFT();
+		FFTShift();
+		break;
+	case PropagationMethod::ARSSFresnel:
+		// TUTAJ PISZ
+		break;
+	}
 }
 
-void CpuGator::Propagate(float distance, Direction direction)
+void CpuGator::Propagate(float distance, Direction direction, PropagationMethod method)
 {
+	// TODO check how to perform 1D propagations other than ASD
 	FFTShift();
 	FFT(direction);
 	FFTShift();

@@ -30,8 +30,8 @@ public:
 	void NormalizeIntensity();
 	void BinarizePhase();
 
-	void Propagate(float distance);
-	void Propagate(float distance, Direction axis);
+	void Propagate(float distance, PropagationMethod method = PropagationMethod::ASD);
+	void Propagate(float distance, Direction axis, PropagationMethod method = PropagationMethod::ASD);
 	
 	void Show(FieldType fieldType = FieldType::Intensity) const;
 	void ShowAll() const; 

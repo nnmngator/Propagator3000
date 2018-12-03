@@ -37,6 +37,15 @@ namespace optics
 		LogIntensity
 	};
 
+	/// <summary>
+	/// Available propagation methods
+	/// </summary>
+	enum PropagationMethod
+	{
+		ASD,
+		ARSSFresnel
+	};
+
 	cv::Vec2f TransferFunction(float z, float lambda, float px, float py, int row, int col, int rows, int cols);
 
 	cv::Vec2f Lens(float f, float lambda, float px, float py, int row, int col, int rows, int cols);

@@ -3,22 +3,22 @@
 
 int main() 
 {
-	cv::Mat image = cv::imread("Images/lena.BMP", cv::IMREAD_GRAYSCALE);
+	cv::Mat image = cv::imread("Images/input.BMP", cv::IMREAD_GRAYSCALE);
 	
 	image.convertTo(image, CV_32FC1, 1.0 / 255);
+	cv::copyMakeBorder(image, image, 1024, 1024, 1024, 1024, cv::BORDER_CONSTANT);
 	
-	CpuGator c1(image), c2(image), c3(image);
-	c1.Propagate(100e-3, Direction::X);
-	c1.Show(FieldType::Intensity);
+	float z2 = 1;
+	float focal = 2 * z2;
+	CpuGator ai(image), lens = CpuGator::Lens(ai.Data.rows, ai.Data.cols, -focal, ai.PitchX, ai.PitchY, ai.Wavelength);
+	ai *= lens;
+	ai.ShowAll();
+	ai.Propagate(z2); 
+	ai.ShowAll();
+	ai.Re();
+	ai.Propagate(-z2);
+	ai.ShowAll();
 
-	c2.Propagate(100e-3, Direction::Y);
-	c2.Show(FieldType::Intensity);
-
-	c3.Propagate(100e-3);
-	c3.Show(FieldType::Intensity);
-
-	auto c4 = c1 * c2;	 // lub c1 + c2
-	c4.Show(FieldType::Intensity);
 
 	system("pause");
 	return 0;

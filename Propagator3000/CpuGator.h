@@ -42,6 +42,12 @@ public:
 	Pix Min() const;
 	Pix Max() const;
 
+	void Re();
+	void Im();
+	void Phase();
+	void Amplitude();
+	void Intensity(); 
+
 	void MulLens(float focal); //todo - focalX, focalY
 
 	static CpuGator TransferFunction(int rows, int cols, float distance, float pitchX, float pitchY, float wavelength);

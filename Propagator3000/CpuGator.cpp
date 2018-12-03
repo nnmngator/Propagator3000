@@ -184,7 +184,7 @@ void CpuGator::Show(FieldType fieldType) const
 	int x = result.cols / 2 - w / 2;
 	int y = result.cols / 2 - h / 2;
 	cv::Rect r(x, y, w, h);
-	cv::imshow(winname, result(r));
+	cv::imshow(winname, result);
 	cv::waitKey();
 	cv::destroyWindow(winname);
 }
@@ -250,6 +250,45 @@ cv::Vec2f CpuGator::Max() const
 	cv::minMaxLoc(chnls[1], nullptr, &maxIm);
 	Pix maxVal{ static_cast<float>(maxRe), static_cast<float>(maxIm) };
 	return maxVal;
+}
+
+void CpuGator::Re()
+{
+	Data.forEach<Pix>([&](auto& pix, const int * pos) -> void {
+		pix[1] = 0;
+	});
+}
+
+void CpuGator::Im()
+{
+	Data.forEach<Pix>([&](auto& pix, const int * pos) -> void {
+		pix[0] = 0;
+	});
+}
+
+void CpuGator::Phase()
+{
+	Data.forEach<Pix>([&](auto& pix, const int * pos) -> void {
+		auto phase = GetPixelValue(pix, FieldType::Phase);
+		pix[0] = std::cosf(phase);
+		pix[1] = std::sinf(phase);
+	});
+}
+
+void CpuGator::Amplitude()
+{
+	Data.forEach<Pix>([&](auto& pix, const int * pos) -> void {
+		pix[0] = GetPixelValue(pix, FieldType::Amplitude);
+		pix[1] = 0;
+	});
+}
+
+void CpuGator::Intensity()
+{
+	Data.forEach<Pix>([&](auto& pix, const int * pos) -> void {
+		pix[0] = GetPixelValue(pix, FieldType::Intensity);
+		pix[1] = 0;
+	});
 }
 
 CpuGator CpuGator::TransferFunction(int rows, int cols, float distance, float pitchX, float pitchY, float wavelength)

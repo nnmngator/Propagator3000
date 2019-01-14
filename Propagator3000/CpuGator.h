@@ -32,7 +32,7 @@ public:
 
 	void Propagate(float distance, PropagationMethod method = PropagationMethod::ASD);
 	void Propagate(float distance, Direction axis, PropagationMethod method = PropagationMethod::ASD);
-	
+
 	void Show(FieldType fieldType = FieldType::Intensity) const;
 	void ShowAll() const; 
 	void Save(const std::string & filename, FieldType fieldType) const;
@@ -86,17 +86,31 @@ public:
 	/// <summary>
 	/// Sampling in X (columns) direction
 	/// </summary>
-	float PitchX;
+	float PitchXSrc, PitchXDst;
 
 	/// <summary>
 	/// Sampling in Y (rows) direction
 	/// </summary>
-	float PitchY;
+	float PitchYSrc, PitchYDst;
 	
 	float Wavelength;
 
-private: 
+public: 
 	void MulTransferFunction(float distance);
+	
+	void ASDPropagate(float distance);
+	void ASDPropagate(float distance, Direction axis);
+
+	void ChirpC(float distance, float offsetX, float offsetY);
+	void ChirpH(float distance, float offsetX, float offsetY);
+	void ChirpU(float distance, float offsetX, float offsetY);
+
+	//void MulChirpH(float distance, float offsetX, float offsetY);
+	//void MulChirpU(float distance, float offsetX, float offsetY);
+	//void MulChirpC(float distance, float offsetX, float offsetY);
+
+	void ARSSPropagate(float distance, float offsetX, float offsetY);
+
 
 	/// <summary>
 	/// Sets given pixel value, depending on what field type 

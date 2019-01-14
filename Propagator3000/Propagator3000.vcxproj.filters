@@ -15,6 +15,7 @@
     <ClInclude Include="CpuGator.h">
       <Filter>Gators\Cpu</Filter>
     </ClInclude>
+    <ClInclude Include="GatorComplex.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
@@ -24,5 +25,6 @@
     <ClCompile Include="GatorUtils.cpp">
       <Filter>Gators</Filter>
     </ClCompile>
+    <ClCompile Include="GatorComplex.cpp" />
   </ItemGroup>
 </Project>

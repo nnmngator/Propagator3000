@@ -101,7 +101,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>opencv_calib3d330d.lib;opencv_core330d.lib;opencv_cudaarithm330d.lib;opencv_cudabgsegm330d.lib;opencv_cudacodec330d.lib;opencv_cudafeatures2d330d.lib;opencv_cudafilters330d.lib;opencv_cudaimgproc330d.lib;opencv_cudalegacy330d.lib;opencv_cudaobjdetect330d.lib;opencv_cudaoptflow330d.lib;opencv_cudastereo330d.lib;opencv_cudawarping330d.lib;opencv_cudev330d.lib;opencv_dnn330d.lib;opencv_features2d330d.lib;opencv_flann330d.lib;opencv_highgui330d.lib;opencv_imgcodecs330d.lib;opencv_imgproc330d.lib;opencv_ml330d.lib;opencv_objdetect330d.lib;opencv_photo330d.lib;opencv_shape330d.lib;opencv_stitching330d.lib;opencv_superres330d.lib;opencv_video330d.lib;opencv_videoio330d.lib;opencv_videostab330d.lib;cudart.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opencv_calib3d343d.lib;opencv_core343d.lib;opencv_cudaarithm343d.lib;opencv_cudabgsegm343d.lib;opencv_cudacodec343d.lib;opencv_cudafeatures2d343d.lib;opencv_cudafilters343d.lib;opencv_cudaimgproc343d.lib;opencv_cudalegacy343d.lib;opencv_cudaobjdetect343d.lib;opencv_cudaoptflow343d.lib;opencv_cudastereo343d.lib;opencv_cudawarping343d.lib;opencv_cudev343d.lib;opencv_dnn343d.lib;opencv_features2d343d.lib;opencv_flann343d.lib;opencv_highgui343d.lib;opencv_imgcodecs343d.lib;opencv_imgproc343d.lib;opencv_ml343d.lib;opencv_objdetect343d.lib;opencv_photo343d.lib;opencv_shape343d.lib;opencv_stitching343d.lib;opencv_superres343d.lib;opencv_video343d.lib;opencv_videoio343d.lib;opencv_videostab343d.lib;cudart.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(OPENCV_PATH)\x64\vc14\bin;$(OPENCV_PATH)\x64\vc14\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -157,11 +157,13 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CpuGator.cpp" />
+    <ClCompile Include="GatorComplex.cpp" />
     <ClCompile Include="GatorUtils.cpp" />
     <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CpuGator.h" />
+    <ClInclude Include="GatorComplex.h" />
     <ClInclude Include="GatorUtils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

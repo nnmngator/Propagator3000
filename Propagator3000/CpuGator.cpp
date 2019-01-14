@@ -4,18 +4,24 @@
 using namespace math;
 
 CpuGator::CpuGator(int rows, int cols) :
-	PitchX(10e-6f), PitchY(10e-6f), Wavelength(632.8e-9f),
+	PitchXSrc(10e-6f), PitchYSrc(10e-6f),
+	PitchXDst(10e-6f), PitchYDst(10e-6f),
+	Wavelength(632.8e-9f),
 	Data(rows, cols, CV_32FC2, cv::Scalar(1))
 {}
 
 CpuGator::CpuGator(const cv::Mat & image, FieldType fieldType) :
-	PitchX(10e-6f), PitchY(10e-6f), Wavelength(632.8e-9f)
+	PitchXSrc(10e-6f), PitchYSrc(10e-6f),
+	PitchXDst(10e-6f), PitchYDst(10e-6f),
+	Wavelength(632.8e-9f)
 {
 	SetImage(image, fieldType);
 }
 
 CpuGator::CpuGator(const CpuGator & other) :
-	PitchX(other.PitchX), PitchY(other.PitchY), Wavelength(other.Wavelength),
+	PitchXSrc(other.PitchXSrc), PitchYSrc(other.PitchYSrc),
+	PitchXDst(other.PitchXDst), PitchYDst(other.PitchYDst),
+	Wavelength(other.Wavelength),
 	// Data need to be cloned so that it is separate for each CpuGator instance
 	Data(other.Data.clone())
 {}
@@ -23,7 +29,7 @@ CpuGator::CpuGator(const CpuGator & other) :
 void CpuGator::SetImage(const cv::Mat & image, FieldType fieldType)
 {
 	assert(image.type() == CV_32FC1 &&
-		   "[CpuGator::SetImage] One channel floaWting point images allowed only");
+		"[CpuGator::SetImage] One channel floaWting point images allowed only");
 
 	// Dispose old data
 	Data.release();
@@ -37,20 +43,25 @@ void CpuGator::SetImage(const cv::Mat & image, FieldType fieldType)
 		float value = image.at<float>(row, col);
 		SetPixelValue(pix, value, fieldType);
 	});
+
 }
 
 void CpuGator::FFT()
-{
+{/*
+	int padTopBottom = Data.rows / 2;
+	int padLeftRight = Data.cols / 2;
+	cv::copyMakeBorder(Data, Data, padTopBottom, padTopBottom, padLeftRight, padLeftRight, cv::BORDER_CONSTANT, cv::Scalar(0));*/
 	cv::dft(Data, Data, cv::DFT_COMPLEX_OUTPUT);
+	//Data = Data(cv::Rect(padLeftRight, padTopBottom, Data.rows / 2, Data.cols / 2));
 }
 
 void CpuGator::FFT(Direction direction)
 {
-	if(direction == Direction::Y)
+	if (direction == Direction::Y)
 	{
 		cv::dft(Data, Data, cv::DFT_ROWS | cv::DFT_COMPLEX_OUTPUT);
 	}
-	else if(direction == Direction::X)
+	else if (direction == Direction::X)
 	{
 		// [TESTED] It has to be conterclockwise FIRST
 		cv::rotate(Data, Data, cv::ROTATE_90_COUNTERCLOCKWISE);
@@ -66,11 +77,11 @@ void CpuGator::IFFT()
 
 void CpuGator::IFFT(Direction direction)
 {
-	if(direction == Direction::Y)
+	if (direction == Direction::Y)
 	{
 		cv::dft(Data, Data, cv::DFT_ROWS | cv::DFT_INVERSE | cv::DFT_SCALE);
 	}
-	else if(direction == Direction::X)
+	else if (direction == Direction::X)
 	{
 		// [TESTED] It has to be conterclockwise FIRST
 		cv::rotate(Data, Data, cv::ROTATE_90_COUNTERCLOCKWISE);
@@ -84,10 +95,10 @@ void CpuGator::FFTShift()
 	Data.forEach<Pix>([&](auto &pix, const int *pos)->void {
 		int row = pos[0], col = pos[1];
 
-		if(row >= Data.rows / 2) return;
+		if (row >= Data.rows / 2) return;
 
 		// 2nd (top left) quarter
-		if(col < Data.cols / 2)
+		if (col < Data.cols / 2)
 		{
 			auto& other_pix = Data.at<Pix>(row + Data.rows / 2, col + Data.cols / 2);
 			std::swap(other_pix, pix);
@@ -113,7 +124,7 @@ void CpuGator::BinarizePhase()
 {
 	Data.forEach<Pix>([&](Pix &pix, const int *pos) -> void {
 		float phase = GetPixelValue(pix, FieldType::Phase);
-		if(phase < 0)
+		if (phase < 0)
 		{
 			pix[1] = 0;
 		}
@@ -129,9 +140,199 @@ void CpuGator::MulTransferFunction(float distance)
 	Data.forEach<Pix>([&](Pix &pix, const int *pos)->void {
 		// here explicit declaration to optics::TF need to be made
 		// since there's also a static method on class with the same name
-		auto tf = optics::TransferFunction(distance, Wavelength, PitchX, PitchY, pos[0], pos[1], Data.rows, Data.cols);
+		auto tf = optics::TransferFunction(distance, Wavelength, PitchXSrc, PitchYSrc, pos[0], pos[1], Data.rows, Data.cols);
 		pix = Mul(tf, pix);
 	});
+}
+
+void CpuGator::ASDPropagate(float distance)
+{
+	FFTShift();
+	FFT();
+	FFTShift();
+	MulTransferFunction(distance);
+	FFTShift();
+	IFFT();
+	FFTShift();
+}
+
+void CpuGator::ASDPropagate(float distance, Direction axis)
+{
+	FFTShift();
+	FFT(axis);
+	FFTShift();
+	MulTransferFunction(distance);
+	FFTShift();
+	IFFT(axis);
+	FFTShift();
+}
+void CpuGator::ChirpC(float distance, float offsetX, float offsetY) {
+	//X
+
+	float s = PitchXSrc / PitchXDst;
+	float o = offsetX;
+	float p = PitchXDst;
+
+	Data.forEach<Pix>([&](Pix& pix, const int * pos) -> void {
+		int row = pos[0], col = pos[1];
+		float x2 = (Data.cols / 2 - col) * p;
+
+		pix = Exp({ 0, (float)(2 * CV_PI / Wavelength *distance + CV_PI / (Wavelength*distance)*((1 - s)*x2*x2 + 2 * o*x2 + o*o)) }) / (-Wavelength * distance);
+	});
+
+
+	//Y
+	s = PitchYSrc / PitchYDst;
+	o = offsetY;
+	p = PitchYDst;
+
+	Data.forEach<Pix>([&](Pix& pix, const int * pos) -> void {
+		int row = pos[0], col = pos[1];
+		float y2 = (Data.rows / 2 - row) * p;
+
+		pix = Mul(pix, Exp({ 0, (float)(2 * CV_PI / Wavelength *distance + CV_PI / (Wavelength*distance)*((1 - s)*y2*y2 + 2 * o*y2 + o*o)) }));
+	});
+
+
+}
+//void CpuGator::MulChirpC(float distance, float offsetX, float offsetY, int xsize, int ysize, float wavelength, float pitchxscr, float pitchysrc, float pitchxdst, float pitchydst) {
+//	CpuGator chirpC(xsize, ysize);
+//	chirpC.Wavelength = wavelength;
+//	chirpC.PitchXSrc = pitchxscr;
+//	chirpC.PitchYSrc = pitchysrc;
+//	chirpC.PitchXDst = pitchxdst;
+//	chirpC.PitchYDst = pitchydst;
+//	chirpC.ChirpC(distance, 0, 0);
+//	(*this) *= chirpC;
+//}
+void CpuGator::ChirpH(float distance, float offsetX, float offsetY)
+{
+	float s = PitchXSrc / PitchXDst;
+	float o = offsetX;
+	float p = PitchXDst;
+	float mhmax = Wavelength*distance / (2 * s*p*p);
+	float xmax = std::min((float)Data.cols, mhmax);
+
+	/*Data.forEach<Pix>([&](Pix& pix, const int * pos) -> void {
+		int row = pos[0], col = pos[1];
+		float y2 = (Data.rows / 2 - row) * p;
+
+		pix = Exp({ 0, (float)((CV_PI * s*y2 *y2) / (Wavelength * distance)) });
+
+	});*/
+	Data.forEach<Pix>([&](Pix& pix, const int * pos) -> void {
+		int row = pos[0], col = pos[1];
+		float xh = (Data.cols / 2 - col) * p;
+		if (xh <= xmax) {
+			pix = Exp({ 0, (float)((CV_PI * s*xh *xh) / (Wavelength * distance)) });
+		}
+		else {
+			pix = { 0,0 };
+		}
+	});
+	s = PitchYSrc / PitchYDst;
+	o = offsetY;
+	p = PitchYDst;
+	mhmax = Wavelength*distance / (2 * s*p*p);
+	xmax = std::min((float)Data.cols, mhmax);
+
+	Data.forEach<Pix>([&](Pix& pix, const int * pos) -> void {
+		int row = pos[0], col = pos[1];
+		float yh = (Data.rows / 2 - row) * p;
+		if (yh <= xmax) {
+			pix = Mul(pix, Exp({ 0, (float)(CV_PI * s*yh *yh / (Wavelength * distance)) }));
+		}
+		else {
+			pix = { 0,0 };
+		}
+	});
+
+}
+//void CpuGator::MulChirpH(float distance, float offsetX, float offsetY, int xsize, int ysize, float wavelength, float pitchxscr, float pitchysrc, float pitchxdst, float pitchydst) {
+//	CpuGator chirpH(xsize, ysize);
+//	chirpH.Wavelength = wavelength;
+//	chirpH.PitchXSrc = pitchxscr;
+//	chirpH.PitchYSrc = pitchysrc;
+//	chirpH.PitchXDst = pitchxdst;
+//	chirpH.PitchYDst = pitchydst;
+//	chirpH.ChirpH(distance, 0, 0);
+//	(*this) *= chirpH;
+//}
+void CpuGator::ChirpU(float distance, float offsetX, float offsetY)
+{
+	float s = PitchXSrc / PitchXDst;
+	float o = offsetX;
+	float p = PitchXDst;
+
+	Data.forEach<Pix>([&](Pix& pix, const int * pos) -> void {
+		int row = pos[0], col = pos[1];
+		float x1 = (Data.cols / 2 - col) * p;
+
+		pix = Exp({ 0, (float)(CV_PI * ((s*s - s)*x1*x1 - 2 * s*o*x1) / (Wavelength * distance)) });
+	});
+
+	s = PitchYSrc / PitchYDst;
+	o = offsetY;
+	p = PitchYDst;
+
+	Data.forEach<Pix>([&](Pix& pix, const int * pos) -> void {
+		int row = pos[0], col = pos[1];
+		float y1 = (Data.rows / 2 - row) * p;
+
+		pix = Mul(pix, Exp({ 0, (float)(CV_PI * ((s*s - s)*y1*y1 - 2 * s*o*y1) / (Wavelength * distance)) }));
+	});
+}
+
+//void CpuGator::MulChirpU(float distance, float offsetX, float offsetY) {
+//	CpuGator chirpU(Data.rows, Data.cols);
+//	chirpU.Wavelength = Wavelength;
+//	chirpU.PitchXSrc = PitchXDst;
+//	chirpU.PitchYSrc = PitchYSrc;
+//	chirpU.PitchXDst = PitchXDst;
+//	chirpU.PitchYDst = PitchYDst;
+//	chirpU.ChirpU(distance, 0, 0);
+//	(*this) *= chirpU;
+//}
+
+void CpuGator::ARSSPropagate(float distance, float offsetX, float offsetY)
+{
+	// Placeholder for chirp functions
+	CpuGator chirp(Data.rows, Data.cols);
+	chirp.Wavelength = Wavelength;
+	chirp.PitchXSrc = PitchXSrc;
+	chirp.PitchYSrc = PitchYSrc;
+	chirp.PitchXDst = PitchXDst;
+	chirp.PitchYDst = PitchYDst;
+
+	// First mul data by Chirp U
+	chirp.ChirpU(distance, offsetX, offsetY);
+
+	(*this) *= chirp;
+
+	// 1st FFT
+	FFTShift();
+	FFT();
+	FFTShift();
+
+	// Compute Chirp H (rect already included)
+	chirp.ChirpH(distance, offsetX, offsetY);
+
+	// 2nd FFT
+	chirp.FFTShift();
+	chirp.FFT();
+	chirp.FFTShift();
+
+	// Mul 1st FFT by 2nd
+	(*this) *= chirp;
+
+	// IFFT
+	FFTShift();
+	IFFT();
+	FFTShift();
+
+	// Times chirpC
+	chirp.ChirpC(distance, offsetX, offsetY);
+	(*this) *= chirp;
 }
 
 void CpuGator::MulLens(float focal)
@@ -139,14 +340,14 @@ void CpuGator::MulLens(float focal)
 	Data.forEach<Pix>([&](Pix &pix, const int *pos)->void {
 		// here explicit declaration to optics::Lens need to be made
 		// since there's also a static method on class with the same name
-		auto lens = optics::Lens(focal, Wavelength, PitchX, PitchY, pos[0], pos[1], Data.rows, Data.cols);
+		auto lens = optics::Lens(focal, Wavelength, PitchXSrc, PitchYSrc, pos[0], pos[1], Data.rows, Data.cols);
 		pix = Mul(lens, pix);
 	});
 }
 
 void CpuGator::Propagate(float distance, PropagationMethod method)
 {
-	switch(method)
+	switch (method)
 	{
 	case PropagationMethod::ASD:
 		FFTShift();
@@ -200,7 +401,7 @@ void CpuGator::Show(FieldType fieldType) const
 
 void CpuGator::ShowAll() const
 {
-	for(int i = FieldType::Re; i != FieldType::LogIntensity + 1; i++)
+	for (int i = FieldType::Re; i != FieldType::LogIntensity + 1; i++)
 	{
 		auto fieldType = static_cast<FieldType>(i);
 		Show(fieldType);
@@ -230,7 +431,7 @@ void CpuGator::ShowSave(const std::string & filename, FieldType fieldType) const
 
 void CpuGator::ShowSaveAll(const std::string & filePrefix) const
 {
-	for(int i = FieldType::Re; i != FieldType::LogIntensity; i++)
+	for (int i = FieldType::Re; i != FieldType::LogIntensity; i++)
 	{
 		auto fieldType = static_cast<FieldType>(i);
 		auto fieldTypeName = FieldTypeToString(fieldType);
@@ -303,8 +504,8 @@ void CpuGator::Intensity()
 CpuGator CpuGator::TransferFunction(int rows, int cols, float distance, float pitchX, float pitchY, float wavelength)
 {
 	CpuGator tf(rows, cols);
-	tf.PitchX = pitchX;
-	tf.PitchY = pitchY;
+	tf.PitchXSrc = pitchX;
+	tf.PitchYSrc = pitchY;
 	tf.Wavelength = wavelength;
 	tf.MulTransferFunction(distance);
 	return tf;
@@ -313,8 +514,8 @@ CpuGator CpuGator::TransferFunction(int rows, int cols, float distance, float pi
 CpuGator CpuGator::Lens(int rows, int cols, float focal, float pitchX, float pitchY, float wavelength)
 {
 	CpuGator lens(rows, cols);
-	lens.PitchX = pitchX;
-	lens.PitchY = pitchY;
+	lens.PitchXSrc = pitchX;
+	lens.PitchYSrc = pitchY;
 	lens.Wavelength = wavelength;
 	lens.MulLens(focal);
 	return lens;
@@ -324,8 +525,8 @@ CpuGator & CpuGator::operator=(const CpuGator & other)
 {
 	Data.release();
 	Data = other.Data.clone();
-	PitchX = other.PitchX;
-	PitchY = other.PitchY;
+	PitchXSrc = other.PitchXSrc;
+	PitchYSrc = other.PitchYSrc;
 	Wavelength = other.Wavelength;
 	return *this;
 }
@@ -460,7 +661,7 @@ void CpuGator::SetPixelValue(Pix & pix, float value, FieldType fieldType)
 {
 	float currentAmp;
 
-	switch(fieldType)
+	switch (fieldType)
 	{
 	case FieldType::Re:
 		pix[0] = value;
@@ -488,7 +689,7 @@ void CpuGator::SetPixelValue(Pix & pix, float value, FieldType fieldType)
 
 float CpuGator::GetPixelValue(const Pix & pix, FieldType fieldType) const
 {
-	switch(fieldType)
+	switch (fieldType)
 	{
 	case FieldType::Re:
 		return pix[0];
